@@ -43,7 +43,9 @@ int main(void)
 
     printf("\r\n==== GM6020 CAN demo (F405 + FreeRTOS) ====\r\n");
 #if CLOCK_USE_HSE
-    printf("clock source : HSE %lu Hz\r\n", (unsigned long)BOARD_HSE_HZ);
+    printf("clock source : %s %lu Hz\r\n",
+           (s_clockSrc == 1U) ? "HSE" : "HSI(fallback)",
+           (unsigned long)BOARD_HSE_HZ);
 #else
     printf("clock source : HSI 16MHz (internal, crystal-independent)\r\n");
 #endif
@@ -84,7 +86,8 @@ void SystemClock_Config(void)
     __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
 #if CLOCK_USE_HSE
-    /* 路径 A：外部晶振 BOARD_HSE_HZ → 168MHz（晶振频率必须与丝印一致！） */
+    /* 路径 A：外部晶振 BOARD_HSE_HZ → 168MHz（晶振频率必须与原理图一致！）
+     * 本板 X1 = 25MHz：PLLM=25 → 1MHz → ×336 → VCO 336MHz → /2 → 168MHz */
     uint32_t hse = BOARD_HSE_HZ;
     uint32_t pllm = hse / 1000000U;         /* 把 HSE 分频到 1MHz 再倍频 */
     if (pllm == 0U) { pllm = 1U; }

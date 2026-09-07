@@ -37,12 +37,14 @@ extern DMA_HandleTypeDef  hdma_uart5_tx;
  *    调试口失联，表现就是烧完再连报 "Invalid ROM Table"（看起来像锁芯片）。
  *    先用 HSI 跑通，确认板子正常后，再根据晶振丝印改回 HSE。 */
 #ifndef CLOCK_USE_HSE
-#define CLOCK_USE_HSE           (0)
+#define CLOCK_USE_HSE           (1)
 #endif
 
-/* 若改回 HSE，这里填板上晶振的实际频率（Hz），必须和丝印一致 */
+/* 板上晶振实际频率（Hz）——来自原理图：位号 X1，标注 "25M/3225"
+ * ⚠️ 必须是 25MHz：若错填 8MHz，PLLM 会算成 8 → VCO = 25/8×336 = 1050MHz
+ *    （上限 432MHz）→ 芯片跑飞 → 调试口失联（Invalid ROM Table） */
 #ifndef BOARD_HSE_HZ
-#define BOARD_HSE_HZ            (8000000u)
+#define BOARD_HSE_HZ            (25000000u)
 #endif
 
 /* ---------- CAN ---------- */
