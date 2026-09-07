@@ -95,7 +95,7 @@
   *        (when HSE is used as system clock source, directly or through the PLL).
   */
 #if !defined  (HSE_VALUE)
-  #define HSE_VALUE    8000000U /*!< Value of the External oscillator in Hz */
+  #define HSE_VALUE    25000000U /*!< 原理图 X1 = 25MHz；必须与实际晶振一致，否则 UART/CAN 波特率全错 */
 #endif /* HSE_VALUE */
 
 #if !defined  (HSE_STARTUP_TIMEOUT)
