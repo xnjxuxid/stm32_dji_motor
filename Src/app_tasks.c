@@ -14,6 +14,7 @@
 #include "app_tasks.h"
 #include "board_config.h"
 #include "can.h"
+#include "stm32f4xx_hal.h"
 #include "uart_vofa.h"
 #include "vofa_send.h"
 #include <stdio.h>
@@ -23,6 +24,9 @@
 
 MotorCtrl_t g_ctrl;
 GM6020_t    g_motor;
+
+/* 诊断：收到了非本电机 ID 的反馈帧（说明总线通了，只是 ID 配错） */
+static uint32_t s_rxOtherId = 0;
 
 static void Task_MotorCtrl(void *arg);
 static void Task_Log(void *arg);
@@ -85,6 +89,11 @@ static void Task_MotorCtrl(void *arg)
                 if (pkt.id == MOTOR_FEEDBACK_ID)
                 {
                     GM6020_Update(&g_motor, pkt.data);
+                }
+                else if ((pkt.id >= 0x200U) && (pkt.id <= 0x20FU))
+                {
+                    /* 收到了别的电机的反馈 → ID 配置不对，提示正确的 ID */
+                    s_rxOtherId = pkt.id;
                 }
             }
         }
@@ -165,12 +174,28 @@ static void Task_Log(void *arg)
             /* 文本模式：每 500ms 一行，便于直接看数值 */
             if ((++tick % 100U) == 0U)
             {
+                /* CAN 错误状态（二分定位：物理层没通 vs ID 不对） */
+                uint32_t esr  = hcan1.Instance->ESR;
+                uint8_t  lec  = (uint8_t)((esr >> 4) & 0x07U);
+                uint8_t  boff = (uint8_t)((esr >> 2) & 0x01U);
+                uint8_t  tec  = (uint8_t)((esr >> 16) & 0xFFU);
+                uint8_t  rec  = (uint8_t)((esr >> 24) & 0xFFU);
+
                 printf("mode=%d online=%u rx=%lu ang=%.1f cont=%.1f spd=%.0f "
-                       "cur=%.2fA tmp=%uC out=%.0f\r\n",
+                       "cur=%.2fA tmp=%uC out=%.0f | can lec=%u tec=%u rec=%u boff=%u\r\n",
                        (int)g_ctrl.mode, (unsigned)g_motor.online,
                        (unsigned long)g_motor.rxCount,
                        g_motor.angleDeg, g_motor.angleCont, g_motor.speed,
-                       g_motor.currentA, (unsigned)g_motor.tempC, g_ctrl.out);
+                       g_motor.currentA, (unsigned)g_motor.tempC, g_ctrl.out,
+                       (unsigned)lec, (unsigned)tec, (unsigned)rec, (unsigned)boff);
+
+                if (s_rxOtherId != 0U)
+                {
+                    printf("note: got feedback from ID 0x%03lX -> set MOTOR_ID=%lu "
+                           "in board_config.h\r\n",
+                           (unsigned long)s_rxOtherId,
+                           (unsigned long)(s_rxOtherId - 0x204U));
+                }
             }
         }
     }
