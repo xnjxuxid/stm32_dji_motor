@@ -27,6 +27,24 @@ extern UART_HandleTypeDef huart5;
 extern DMA_HandleTypeDef  hdma_uart5_rx;
 extern DMA_HandleTypeDef  hdma_uart5_tx;
 
+/* ---------- 时钟源（🔒 锁芯片问题的关键开关） ----------
+ * 0 = HSI 内部 16MHz → PLL 到 168MHz（**不依赖任何外部晶振**，绝不会超频）
+ * 1 = HSE 外部晶振 → 168MHz（**必须确认板上晶振真的是 8MHz**）
+ *
+ * ⚠️ 为什么默认改成 HSI：
+ *    如果板子实际晶振是 12MHz/25MHz，而代码按 8MHz 算 PLL（HSE 仍能起振、
+ *    HAL 不报错），VCO 会被配到 504MHz（上限 432MHz）→ 芯片跑飞 →
+ *    调试口失联，表现就是烧完再连报 "Invalid ROM Table"（看起来像锁芯片）。
+ *    先用 HSI 跑通，确认板子正常后，再根据晶振丝印改回 HSE。 */
+#ifndef CLOCK_USE_HSE
+#define CLOCK_USE_HSE           (0)
+#endif
+
+/* 若改回 HSE，这里填板上晶振的实际频率（Hz），必须和丝印一致 */
+#ifndef BOARD_HSE_HZ
+#define BOARD_HSE_HZ            (8000000u)
+#endif
+
 /* ---------- CAN ---------- */
 #define CAN_BAUD_HZ             (1000000u)   /* GM6020 规定 1 Mbps */
 #define CAN_TQ_TOTAL            (14u)        /* 1(SYNC) + BS1(10) + BS2(3) */

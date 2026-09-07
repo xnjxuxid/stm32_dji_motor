@@ -27,7 +27,9 @@
 void SystemClock_Config(void);
 void MX_FREERTOS_Init(void);
 
-static uint8_t s_clockSrc = 1;   /* 1 = HSE, 2 = HSI(回退) */
+#if CLOCK_USE_HSE
+static uint32_t s_clockSrc = 1;  /* 1 = HSE, 2 = HSI(回退)；仅 HSE 模式下会打印 */
+#endif
 
 int main(void)
 {
@@ -40,7 +42,11 @@ int main(void)
     MX_UART5_Init();        /* UART5 PC12/PD2，115200                 */
 
     printf("\r\n==== GM6020 CAN demo (F405 + FreeRTOS) ====\r\n");
-    printf("clock source : %s\r\n", (s_clockSrc == 1U) ? "HSE 8MHz" : "HSI 16MHz (HSE failed)");
+#if CLOCK_USE_HSE
+    printf("clock source : HSE %lu Hz\r\n", (unsigned long)BOARD_HSE_HZ);
+#else
+    printf("clock source : HSI 16MHz (internal, crystal-independent)\r\n");
+#endif
     printf("SYSCLK=%lu HCLK=%lu PCLK1=%lu PCLK2=%lu\r\n",
            (unsigned long)HAL_RCC_GetSysClockFreq(),
            (unsigned long)HAL_RCC_GetHCLKFreq(),
@@ -77,27 +83,32 @@ void SystemClock_Config(void)
     __HAL_RCC_PWR_CLK_ENABLE();
     __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
+#if CLOCK_USE_HSE
+    /* 路径 A：外部晶振 BOARD_HSE_HZ → 168MHz（晶振频率必须与丝印一致！） */
+    uint32_t hse = BOARD_HSE_HZ;
+    uint32_t pllm = hse / 1000000U;         /* 把 HSE 分频到 1MHz 再倍频 */
+    if (pllm == 0U) { pllm = 1U; }
+
     osc.OscillatorType = RCC_OSCILLATORTYPE_HSE;
     osc.HSEState       = RCC_HSE_ON;
     osc.PLL.PLLState   = RCC_PLL_ON;
     osc.PLL.PLLSource  = RCC_PLLSOURCE_HSE;
-    osc.PLL.PLLM       = 8;                 /* 8MHz / 8 = 1MHz */
-    osc.PLL.PLLN       = 336;               /* ×336 = 336MHz   */
-    osc.PLL.PLLP       = RCC_PLLP_DIV2;     /* /2 = 168MHz     */
+    osc.PLL.PLLM       = pllm;
+    osc.PLL.PLLN       = 336;               /* 1MHz ×336 = 336MHz(VCO) */
+    osc.PLL.PLLP       = RCC_PLLP_DIV2;     /* /2 = 168MHz            */
     osc.PLL.PLLQ       = 7;
 
     if (HAL_RCC_OscConfig(&osc) != HAL_OK)
     {
-        /* 无外部晶振：回退 HSI 16MHz，同样配到 168MHz */
         HAL_RCC_DeInit();
         s_clockSrc = 2;
-
+        /* 回退 HSI（见下方路径 B 的同一套参数） */
         osc.OscillatorType = RCC_OSCILLATORTYPE_HSI;
         osc.HSEState       = RCC_HSE_OFF;
         osc.HSIState       = RCC_HSI_ON;
         osc.PLL.PLLState   = RCC_PLL_ON;
         osc.PLL.PLLSource  = RCC_PLLSOURCE_HSI;
-        osc.PLL.PLLM       = 16;            /* 16MHz / 16 = 1MHz */
+        osc.PLL.PLLM       = 16;
         osc.PLL.PLLN       = 336;
         osc.PLL.PLLP       = RCC_PLLP_DIV2;
         osc.PLL.PLLQ       = 7;
@@ -106,6 +117,22 @@ void SystemClock_Config(void)
             Error_Handler();
         }
     }
+#else
+    /* 路径 B（默认）：内部 HSI 16MHz → 168MHz
+     * 完全不依赖外部晶振 → 不可能因晶振频率不符而超频跑飞/锁死调试口 */
+    osc.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+    osc.HSIState       = RCC_HSI_ON;
+    osc.PLL.PLLState   = RCC_PLL_ON;
+    osc.PLL.PLLSource  = RCC_PLLSOURCE_HSI;
+    osc.PLL.PLLM       = 16;                /* 16MHz / 16 = 1MHz       */
+    osc.PLL.PLLN       = 336;               /* ×336 = 336MHz (VCO)     */
+    osc.PLL.PLLP       = RCC_PLLP_DIV2;     /* /2 = 168MHz             */
+    osc.PLL.PLLQ       = 7;                 /* 336/7 = 48MHz           */
+    if (HAL_RCC_OscConfig(&osc) != HAL_OK)
+    {
+        Error_Handler();
+    }
+#endif
 
     clk.ClockType      = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK |
                          RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
