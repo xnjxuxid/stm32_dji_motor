@@ -1,0 +1,37 @@
+# ===== Keil MDK 编译产物（绝不提交）=====
+**/MDK-ARM/*/
+**/MDK-ARM/*.uvguix.*
+**/MDK-ARM/*.lst
+**/MDK-ARM/*.htm
+**/MDK-ARM/*.dep
+**/MDK-ARM/*.bak
+**/MDK-ARM/JLinkLog.txt
+**/MDK-ARM/debug/
+
+# 通用编译产物后缀
+*.o
+*.d
+*.crf
+*.axf
+*.lnp
+*.iex
+*.lst
+*.map
+*.bin
+*.hex
+*.elf
+*.sct
+*.dep
+build*.log
+
+# IDE 用户界面配置（含本机窗口布局，无复现价值）
+*.uvguix.*
+*.scvd
+
+# 系统文件
+Thumbs.db
+.DS_Store
+# Keil 自动生成的报告/布局文件
+**/*.htm
+**/*.uvoptx
+**/*.build_log.htm
