@@ -23,6 +23,8 @@ typedef struct
     float speedCmd;       /* 位置环输出 = 内环速度目标（调试观察用） */
     float voltLimit;      /* 输出限幅（安全）          */
     float speedLimit;     /* 内环速度限幅（安全）      */
+    float angleMinSpeed;  /* 位置环最小速度指令（抗静摩擦，治末端爬行） */
+    float angleDeadband;  /* 位置环到达死区（度），进入死区不再补速度 */
     float out;            /* 最终输出电压              */
     uint8_t logCurve;     /* 1 = JustFloat 曲线，0 = 文本 */
     PID_t  pidSpeed;

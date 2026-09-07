@@ -49,7 +49,8 @@ void App_Tasks_Create(void)
      * 速度环：outMax 用大值，实际限幅靠 g_ctrl.voltLimit
      * 位置环：输出是"速度目标"，所以 outMax = 速度上限 */
     PID_Init(&g_ctrl.pidSpeed, 30.0f, 2.0f, 0.0f, 0.001f, GM6020_VOLT_MAX, 15000.0f);
-    PID_Init(&g_ctrl.pidAngle, 0.8f, 0.0f, 0.02f, 0.001f, MOTOR_SPEED_LIMIT_RPM, 60.0f);
+    /* 位置环：Kp 决定"多快冲过去"，Ki 消除末端小误差导致的爬行，Kd 抑制超调 */
+    PID_Init(&g_ctrl.pidAngle, 1.5f, 0.02f, 0.03f, 0.001f, MOTOR_SPEED_LIMIT_RPM, 60.0f);
 
     g_ctrl.mode       = MODE_IDLE;      /* 上电不输出，安全第一 */
     g_ctrl.voltCmd    = 0.0f;
@@ -58,6 +59,8 @@ void App_Tasks_Create(void)
     g_ctrl.speedCmd   = 0.0f;
     g_ctrl.voltLimit  = MOTOR_VOLT_LIMIT_DEFAULT;
     g_ctrl.speedLimit = MOTOR_SPEED_LIMIT_RPM;
+    g_ctrl.angleMinSpeed = 15.0f;   /* 最小 15rpm：低于这个值电机推不动（静摩擦） */
+    g_ctrl.angleDeadband = 0.5f;    /* 0.5° 以内算到位 */
     g_ctrl.out        = 0.0f;
     g_ctrl.logCurve   = 0U;
 
@@ -125,6 +128,22 @@ static void Task_MotorCtrl(void *arg)
             speedCmd = PID_Calc(&g_ctrl.pidAngle,
                                 g_ctrl.angleTarget, g_motor.angleCont);
             speedCmd = ClampF(speedCmd, -g_ctrl.speedLimit, g_ctrl.speedLimit);
+
+            /* 抗静摩擦：还有误差但速度指令已小于"能推动电机的最小速度"时，
+             * 直接给到最小速度，否则最后几度会一直慢慢爬（末端爬行现象） */
+            if (fabsf(g_ctrl.pidAngle.err) > g_ctrl.angleDeadband)
+            {
+                if ((speedCmd < g_ctrl.angleMinSpeed) &&
+                    (speedCmd > -g_ctrl.angleMinSpeed))
+                {
+                    speedCmd = (g_ctrl.pidAngle.err >= 0.0f) ?
+                               g_ctrl.angleMinSpeed : -g_ctrl.angleMinSpeed;
+                }
+            }
+            else
+            {
+                speedCmd = 0.0f;      /* 已到死区内：停住，避免来回抖 */
+            }
             g_ctrl.speedCmd = speedCmd;
             /* 内环：速度误差 → 电压 */
             out = PID_Calc(&g_ctrl.pidSpeed, speedCmd, g_motor.speed);
@@ -240,6 +259,8 @@ static void HandleCommand(char *line)
     else if (strcmp(cmd, "kd2") == 0) { g_ctrl.pidAngle.Kd = v; }
     else if (strcmp(cmd, "lv")  == 0) { g_ctrl.voltLimit = ClampF(fabsf(v), 0.0f, GM6020_VOLT_MAX); }
     else if (strcmp(cmd, "ls")  == 0) { g_ctrl.speedLimit = ClampF(fabsf(v), 0.0f, 320.0f); }
+    else if (strcmp(cmd, "lmin")== 0) { g_ctrl.angleMinSpeed = ClampF(fabsf(v), 0.0f, 100.0f); }
+    else if (strcmp(cmd, "ad")  == 0) { g_ctrl.angleDeadband = ClampF(fabsf(v), 0.0f, 10.0f); }
     else if (strcmp(cmd, "log") == 0) { g_ctrl.logCurve = (v > 0.0f) ? 1U : 0U; }
     else if (strcmp(cmd, "zero")== 0) { GM6020_ZeroAngle(&g_motor); printf("angle zeroed\r\n"); }
     else if (strcmp(cmd, "stop")== 0) { g_ctrl.mode = MODE_IDLE; PID_Reset(&g_ctrl.pidSpeed); PID_Reset(&g_ctrl.pidAngle); }
@@ -251,7 +272,9 @@ static void HandleCommand(char *line)
                " an <deg>   angle loop: rotate N degrees (720 ok)\r\n"
                " kp/ki/kd   speed-loop gains | kp2/ki2/kd2 angle-loop gains\r\n"
                " lv <v>     voltage limit   | ls <rpm> inner speed limit\r\n"
-               " log 1|0    curve/text print | zero=reset angle | stop\r\n");
+               " lmin <rpm> min speed of angle loop (fix slow approach)\r\n"
+               " ad <deg>   angle deadband  | zero=reset angle | stop\r\n"
+               " log 1|0    curve/text print\r\n");
     }
     else
     {
