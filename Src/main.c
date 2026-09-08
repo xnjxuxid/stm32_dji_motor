@@ -44,7 +44,7 @@ int main(void)
     MX_SPI1_Init();         /* SPI1 PA5/6/7（BMI088）                 */
     MX_CAN1_Init();         /* CAN1 PA11/PA12，1 Mbps（分频自动计算） */
     MX_UART5_Init();        /* UART5 PC12/PD2，115200（VOFA/命令）    */
-    MX_USART6_UART_Init();  /* USART6 PC7，115200 8N1 正逻辑（iBus 遥控） */
+    MX_RC_UART_Init();      /* 遥控：iBus(PC7) 或 DBUS/SBUS(PA3)，见 RC_PROTOCOL */
 
     printf("\r\n==== GM6020 CAN demo (F405 + FreeRTOS) ====\r\n");
 #if CLOCK_USE_HSE

@@ -6,6 +6,25 @@
 
 ---
 
+## 〇、先说清楚：iA10B 只能用 iBus（**发不出 DBUS**）
+
+| 事实 | 依据 |
+|---|---|
+| i6X 菜单只有 `Output Mode`（PWM / PPM / **i-Bus**）+ `i-Bus Setup`，**没有 SBUS** | i6X 手册 |
+| iA10B 规格：i-Bus port: Yes、PPM Output，**无 SBUS/DBUS** | iA10B 手册 |
+| **DBUS 是 DJI DR16 接收机的私有协议**，且 DR16 只能配 **DJI DT7** 遥控器，配不了 i6X | 硬件事实 |
+
+所以：**用 i6X + iA10B 只能走 iBus（J8 座）**。
+只有换成 **DR16 接收机 + DT7 遥控器**（实验室别人用的组合）时，才用 DBUS 走 P1 座。
+
+代码已做成**一份代码两种协议**（`board_config.h` 里 `RC_PROTOCOL`）：
+
+```c
+#define RC_PROTOCOL  (0)    /* 0 = iBus: USART6(PC7) 115200 正逻辑 → J8 座，iA10B 用这个 */
+                            /* 1 = DBUS/SBUS: USART2(PA3) 100000 8E2 反相 → P1 座，DR16 用 */
+```
+两种配置都编译验证过（0 Error / 0 Warning），改宏重新编译即可切换。
+
 ## 一、为什么选 iBus、为什么用 J8 座
 
 | 协议 | 波特率 | 校验 | 电平 | 复杂度 |
@@ -18,10 +37,12 @@
 
 **板上两个接口的区别（原理图确认）**：
 
-| 座子 | 丝印 | 信号 | 能接 iBus 吗 |
+| 座子 | 丝印 | 信号 | 适用协议 |
 |---|---|---|---|
-| **P1（RC+Servo）** | "下层DBUS，上层舵机" | 经 Q1 **SS8050 反相** → PA3 | ❌ 反相了，iBus 收不到 |
-| **J8（GHS1.25 4P）** | USART6 | **USART6_RX(PC7)** 直连 + 5V + GND，带 D5 3.6V 保护 | ✅ **就这个** |
+| **P1（RC+Servo）** | "下层DBUS，上层舵机" | 经 Q1 **SS8050 反相** → PA3 | **DBUS/SBUS**（DR16 用这个） |
+| **J8（GHS1.25 4P）** | USART6 | **USART6_RX(PC7)** 直连 + 5V + GND，带 D5 3.6V 保护 | **iBus**（iA10B 用这个） |
+
+> 反相器只适合"本来就反相的协议"（DBUS/SBUS）；iBus 是正逻辑，必须走没反相的 J8。
 
 ---
 

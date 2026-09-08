@@ -58,6 +58,24 @@ void HAL_UART_MspInit(UART_HandleTypeDef *huart)
         HAL_NVIC_SetPriority(UART5_IRQn, 5, 0);
         HAL_NVIC_EnableIRQ(UART5_IRQn);
     }
+#if (RC_PROTOCOL == 1)
+    else if (huart->Instance == USART2)
+    {
+        /* ---- DBUS/SBUS：USART2_RX = PA3（P1 座，经 Q1 SS8050 反相） ---- */
+        __HAL_RCC_USART2_CLK_ENABLE();
+        __HAL_RCC_GPIOA_CLK_ENABLE();
+
+        GPIO_InitStruct.Pin       = GPIO_PIN_3;
+        GPIO_InitStruct.Mode      = GPIO_MODE_AF_PP;
+        GPIO_InitStruct.Pull      = GPIO_PULLUP;
+        GPIO_InitStruct.Speed     = GPIO_SPEED_FREQ_VERY_HIGH;
+        GPIO_InitStruct.Alternate = GPIO_AF7_USART2;
+        HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+        HAL_NVIC_SetPriority(USART2_IRQn, 5, 0);
+        HAL_NVIC_EnableIRQ(USART2_IRQn);
+    }
+#else
     else if (huart->Instance == USART6)
     {
         /* ---- 遥控器 iBus：USART6_RX = PC7（板上 J8 座，无反相、带 3.6V 保护） ---- */
@@ -74,6 +92,7 @@ void HAL_UART_MspInit(UART_HandleTypeDef *huart)
         HAL_NVIC_SetPriority(USART6_IRQn, 5, 0);
         HAL_NVIC_EnableIRQ(USART6_IRQn);
     }
+#endif
 }
 
 void HAL_UART_MspDeInit(UART_HandleTypeDef *huart)

@@ -121,8 +121,8 @@ static void Task_Rc(void *arg)
          * 开关通道 > 1500us（拨杆上位）才允许输出，否则停机。 */
         if (g_ctrl.rcSwCh != 0U)
         {
-            uint16_t sw = g_rc.ch[g_ctrl.rcSwCh - 1U];
-            if (sw < 1500U)
+            /* 用归一化值判断（兼容 iBus 与 DBUS 两种量纲）：>0 才允许输出 */
+            if (RC_Norm((uint8_t)(g_ctrl.rcSwCh - 1U)) <= 0.0f)
             {
                 g_ctrl.mode = MODE_IDLE;
                 g_ctrl.out  = 0.0f;

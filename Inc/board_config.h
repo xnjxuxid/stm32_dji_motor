@@ -19,6 +19,22 @@
 
 /* =========================== 阶段三新增 =========================== */
 
+/* ---------- 遥控器协议选择（二选一，改这里即可，不用换代码） ----------
+ *  0 = iBus   ：USART6_RX(PC7)，115200 8N1 **正逻辑**，J8 座
+ *               → 适用：**富斯 iA10B / iA6B 的 i-BUS 口**（i6X 遥控器只能出这个）
+ *  1 = DBUS/SBUS：USART2_RX(PA3)，100000 8E2 **反相**（板上 SS8050 已反相）
+ *               → 适用：**DJI DR16 接收机（配 DT7 遥控器）**或能出 SBUS 的接收机
+ *               → 接板上 P1 座（丝印"下层DBUS，上层舵机"）
+ *
+ *  ⚠️ 重要事实：富斯 iA10B **只能输出 iBus / PPM / PWM**，
+ *     发不出 DBUS，也发不出 SBUS（i6X 菜单里没有 SBUS 选项）；
+ *     DBUS 是 DJI DR16 的私有协议，且 DR16 只能配 DJI DT7 遥控器。
+ *     所以用 iA10B 时必须选 0（iBus）。 */
+#ifndef RC_PROTOCOL
+#define RC_PROTOCOL             (0)     /* 0 = iBus(PC7), 1 = DBUS/SBUS(PA3) */
+#endif
+
+#if (RC_PROTOCOL == 0)
 /* ---------- 遥控器：FlySky iBus（iA10B 的 i-BUS 口） ----------
  * 为什么用 iBus：115200 / 8N1 / **正逻辑**（不用反相器、不用奇偶校验），
  *   是所有遥控协议里最简单的一根线方案。
@@ -31,11 +47,18 @@
 #define RC_UART             (&RC_UART_HANDLE)
 #define RC_UART_INSTANCE    USART6
 #define RC_BAUDRATE         (115200u)
+#else
+#define RC_UART_HANDLE      huart2
+#define RC_UART             (&RC_UART_HANDLE)
+#define RC_UART_INSTANCE    USART2
+#define RC_BAUDRATE         (100000u)
+#endif
 
 /* 遥控保护：超过该时间没收到新帧 → 立即停输出、清 PID 积分（电机"没力"） */
 #define RC_LINK_TIMEOUT_MS  (100u)
 
-extern UART_HandleTypeDef huart6;
+extern UART_HandleTypeDef huart6;   /* iBus 用（PC7）  */
+extern UART_HandleTypeDef huart2;   /* DBUS/SBUS 用（PA3，经 SS8050 反相） */
 
 /* ---------- BMI088（SPI1，原理图确认是 SPI 不是 I2C） ----------
  * SPI1 : PA5 = SCK, PA6 = MISO, PA7 = MOSI
