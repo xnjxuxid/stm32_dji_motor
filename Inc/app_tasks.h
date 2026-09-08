@@ -30,6 +30,7 @@ typedef struct
     uint8_t logCurve;     /* 1 = JustFloat 曲线，0 = 文本 */
     uint8_t rcEnabled;    /* 1 = 允许遥控控制电机（命令 rc 1 开启） */
     uint8_t rcSwCh;       /* 安全开关通道号 1~14，0 = 不使用开关 */
+    float  rcDeadzone;    /* 遥控死区（归一化 0~0.5）：吸收摇杆回中机械误差 */
     PID_t  pidSpeed;
     PID_t  pidAngle;
 } MotorCtrl_t;

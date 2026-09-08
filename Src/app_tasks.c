@@ -70,6 +70,7 @@ void App_Tasks_Create(void)
     g_ctrl.out        = 0.0f;
     g_ctrl.logCurve   = 0U;
     g_ctrl.rcEnabled  = 0U;        /* 默认不允许遥控控制，命令 rc 1 开启 */
+    g_ctrl.rcDeadzone = 0.10f;     /* 默认 10%：松手后有残余速度就往上加 */
     g_ctrl.rcSwCh     = 0U;        /* 0 = 不启用安全开关；命令 rsw 5 可指定通道 */
 
     /* ---- 阶段三：BMI088 上电自检（SPI） ---- */
@@ -133,9 +134,12 @@ static void Task_Rc(void *arg)
             }
         }
 
-        /* 右摇杆上下（CH2 = 索引 1）→ 速度目标（±speedLimit），带 5% 死区 */
-        float cmd = RC_Norm(1) * g_ctrl.speedLimit;
-        if (fabsf(cmd) < (0.05f * g_ctrl.speedLimit)) { cmd = 0.0f; }
+        /* 右摇杆上下（CH2 = 索引 1）→ 速度目标（±speedLimit）
+         * 死区：摇杆机械回中总有点误差（回不到精确 1024），死区把
+         * "接近中位"的小量直接判零，否则松手后会有几 rpm 的残余速度 */
+        float raw = RC_Norm(1);
+        if (fabsf(raw) < g_ctrl.rcDeadzone) { raw = 0.0f; }
+        float cmd = raw * g_ctrl.speedLimit;
 
         if (g_ctrl.mode != MODE_SPEED)
         {
@@ -389,6 +393,11 @@ static void HandleCommand(char *line)
                g_ctrl.rcEnabled ? "ENABLED" : "disabled");
     }
     else if (strcmp(cmd, "imust")== 0) { (void)BMI088_SelfTest(&g_imu); }
+    else if (strcmp(cmd, "dz")   == 0)
+    {
+        g_ctrl.rcDeadzone = ClampF(fabsf(v), 0.0f, 0.5f);
+        printf("rc deadzone = %.0f%%\r\n", g_ctrl.rcDeadzone * 100.0f);
+    }
     else if (strcmp(cmd, "rsw")  == 0)
     {
         g_ctrl.rcSwCh = (uint8_t)ClampF(v, 0.0f, 14.0f);
