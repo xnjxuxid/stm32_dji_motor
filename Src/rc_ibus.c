@@ -221,7 +221,8 @@ float RC_Norm(uint8_t idx)
 {
     float v;
     if (idx >= 16U) { return 0.0f; }
-    v = ((float)g_rc.ch[idx] - 992.0f) / 820.0f;    /* SBUS：172~1811，中位 992 */
+    /* 实测 iA10B 的 S.BUS 输出量纲与 DBUS 相同：364~1684，中位 1024 */
+    v = ((float)g_rc.ch[idx] - 1024.0f) / 660.0f;
     if (v >  1.0f) { v =  1.0f; }
     if (v < -1.0f) { v = -1.0f; }
     return v;
