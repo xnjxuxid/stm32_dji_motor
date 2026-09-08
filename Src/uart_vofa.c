@@ -79,10 +79,20 @@ void UART_SendData_DMA(uint8_t *data, uint16_t len)
 
     xSemaphoreTake(s_txMutex, portMAX_DELAY);
 
-    /* 等待上一次 DMA 发送完成（TX 完成中断会把 gState 置回 READY） */
-    while (VOFA_UART->gState != HAL_UART_STATE_READY)
+    /* 等待上一次 DMA 发送完成（TX 完成中断会把 gState 置回 READY）。
+     * 加超时保护：万一 gState 卡在 BUSY（DMA 中断丢失等异常），
+     * 强制中止发送恢复 READY，保证曲线流不会永久卡死。 */
     {
-        vTaskDelay(1);
+        TickType_t t0 = xTaskGetTickCount();
+        while (VOFA_UART->gState != HAL_UART_STATE_READY)
+        {
+            if ((xTaskGetTickCount() - t0) > pdMS_TO_TICKS(20U))
+            {
+                HAL_UART_AbortTransmit(VOFA_UART);   /* 强制恢复 READY */
+                break;
+            }
+            vTaskDelay(1);
+        }
     }
 
     if (len > UART_TX_BUF_SIZE)

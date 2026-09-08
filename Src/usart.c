@@ -57,6 +57,14 @@ void HAL_UART_MspInit(UART_HandleTypeDef *huart)
 
         HAL_NVIC_SetPriority(UART5_IRQn, 5, 0);
         HAL_NVIC_EnableIRQ(UART5_IRQn);
+        /* ⚠️ UART5 的 DMA 收发中断必须使能：
+         *  - DMA1_Stream7(TX) 的 TC 中断负责把 gState 从 BUSY_TX 恢复成 READY，
+         *    不使能的话 JustFloat 只能发出第一帧，之后全部堵死
+         *  - DMA1_Stream0(RX) 配合 IDLE 中断收不定长命令 */
+        HAL_NVIC_SetPriority(DMA1_Stream0_IRQn, 5, 0);
+        HAL_NVIC_EnableIRQ(DMA1_Stream0_IRQn);
+        HAL_NVIC_SetPriority(DMA1_Stream7_IRQn, 5, 0);
+        HAL_NVIC_EnableIRQ(DMA1_Stream7_IRQn);
     }
 #if (RC_PROTOCOL == 1)
     else if (huart->Instance == USART2)
