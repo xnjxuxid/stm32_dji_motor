@@ -153,8 +153,15 @@ static void FeedByte(uint8_t b)
     {
         if ((s_buf[0] == 0x0Fu) && (s_buf[24] == 0x00U))
         {
-            ParseSBUS(s_buf);
-            g_rc.linked = 1U; g_rc.frameCount++; g_rc.lastFrameMs = now;
+            /* SBUS flags 在 byte[23]：bit2 = 丢帧，bit3 = 失控保护 */
+            uint8_t flags = s_buf[23];
+            g_rc.failsafe = (uint8_t)((flags & 0x08U) ? 1U : 0U);
+
+            if ((flags & 0x0CU) == 0U)          /* 正常帧才更新通道 */
+            {
+                ParseSBUS(s_buf);
+                g_rc.linked = 1U; g_rc.frameCount++; g_rc.lastFrameMs = now;
+            }
         }
         s_len = 0;
     }
@@ -189,6 +196,12 @@ void RC_Init(void)
 
 uint8_t RC_IsLinked(void)
 {
+    /* SBUS 接收机进入失控保护 → 立即判定失联（比超时更快） */
+    if (g_rc.failsafe != 0U)
+    {
+        g_rc.linked = 0U;
+        return 0U;
+    }
     if ((HAL_GetTick() - g_rc.lastFrameMs) > RC_LINK_TIMEOUT_MS)
     {
         g_rc.linked = 0U;

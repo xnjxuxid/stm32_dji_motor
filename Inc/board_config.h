@@ -31,7 +31,7 @@
  *     DBUS 是 DJI DR16 的私有协议，且 DR16 只能配 DJI DT7 遥控器。
  *     所以用 iA10B 时必须选 0（iBus）。 */
 #ifndef RC_PROTOCOL
-#define RC_PROTOCOL             (0)     /* 0 = iBus(PC7), 1 = DBUS/SBUS(PA3) */
+#define RC_PROTOCOL             (1)     /* 0 = iBus(PC7/J8座), 1 = DBUS/SBUS(PA3/P1座) */
 #endif
 
 #if (RC_PROTOCOL == 0)

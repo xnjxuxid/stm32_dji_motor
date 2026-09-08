@@ -22,6 +22,7 @@ typedef struct
     uint16_t ch[16];        /* iBus 1000~2000us；DBUS 364~1684（中位 1024） */
     uint8_t  s1;            /* DBUS 拨杆（iBus 模式下无效） */
     uint8_t  s2;
+    uint8_t  failsafe;      /* SBUS 帧里的失控标志（接收机进入失控保护） */
     uint8_t  linked;
     uint32_t frameCount;
     uint32_t lastFrameMs;
