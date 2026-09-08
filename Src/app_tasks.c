@@ -71,7 +71,6 @@ void App_Tasks_Create(void)
     g_ctrl.logCurve   = 0U;
     g_ctrl.rcEnabled  = 0U;        /* 默认不允许遥控控制，命令 rc 1 开启 */
     g_ctrl.rcSwCh     = 0U;        /* 0 = 不启用安全开关；命令 rsw 5 可指定通道 */
-    g_ctrl.rcSpeedCh  = 2U;        /* 速度控制通道：默认 CH2（左手上下，带回中弹簧）*/
 
     /* ---- 阶段三：BMI088 上电自检（SPI） ---- */
     BMI088_Init(&g_imu);
@@ -134,9 +133,8 @@ static void Task_Rc(void *arg)
             }
         }
 
-        /* 速度控制通道（默认 CH2 左手上下，带回中弹簧）→ 速度目标，带 5% 死区
-         * ⚠️ 别用油门杆（CH3，右手上下）：油门杆自锁不回中，松手后有残余速度 */
-        float cmd = RC_Norm((uint8_t)(g_ctrl.rcSpeedCh - 1U)) * g_ctrl.speedLimit;
+        /* 右摇杆上下（CH2 = 索引 1）→ 速度目标（±speedLimit），带 5% 死区 */
+        float cmd = RC_Norm(1) * g_ctrl.speedLimit;
         if (fabsf(cmd) < (0.05f * g_ctrl.speedLimit)) { cmd = 0.0f; }
 
         if (g_ctrl.mode != MODE_SPEED)
@@ -391,12 +389,6 @@ static void HandleCommand(char *line)
                g_ctrl.rcEnabled ? "ENABLED" : "disabled");
     }
     else if (strcmp(cmd, "imust")== 0) { (void)BMI088_SelfTest(&g_imu); }
-    else if (strcmp(cmd, "rch")  == 0)
-    {
-        g_ctrl.rcSpeedCh = (uint8_t)ClampF(v, 1.0f, 14.0f);
-        printf("rc speed channel = %u (use a SELF-CENTERING stick, not throttle)\r\n",
-               (unsigned)g_ctrl.rcSpeedCh);
-    }
     else if (strcmp(cmd, "rsw")  == 0)
     {
         g_ctrl.rcSwCh = (uint8_t)ClampF(v, 0.0f, 14.0f);

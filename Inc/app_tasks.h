@@ -30,7 +30,6 @@ typedef struct
     uint8_t logCurve;     /* 1 = JustFloat 曲线，0 = 文本 */
     uint8_t rcEnabled;    /* 1 = 允许遥控控制电机（命令 rc 1 开启） */
     uint8_t rcSwCh;       /* 安全开关通道号 1~14，0 = 不使用开关 */
-    uint8_t rcSpeedCh;    /* 速度控制通道号 1~14（要用带回中弹簧的杆，别用油门杆） */
     PID_t  pidSpeed;
     PID_t  pidAngle;
 } MotorCtrl_t;
