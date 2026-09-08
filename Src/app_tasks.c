@@ -229,13 +229,24 @@ static void Task_MotorCtrl(void *arg)
         }
 
         /* 2) 保护：反馈超时 → 立即停止输出并清积分（拔掉 CAN 线也安全） */
-        if (!GM6020_IsOnline(&g_motor, MOTOR_RX_TIMEOUT_MS))
         {
-            g_ctrl.out = 0.0f;
-            PID_Reset(&g_ctrl.pidSpeed);
-            PID_Reset(&g_ctrl.pidAngle);
-            GM6020_SendStop(MOTOR_ID);
-            continue;
+            uint8_t wasOnline = g_motor.online;
+            if (!GM6020_IsOnline(&g_motor, MOTOR_RX_TIMEOUT_MS))
+            {
+                if (wasOnline != 0U)   /* 沿触发：只在"由在线变失联"时打一次 */
+                {
+                    printf("[MOTOR] feedback timeout -> output disabled\r\n");
+                }
+                g_ctrl.out = 0.0f;
+                PID_Reset(&g_ctrl.pidSpeed);
+                PID_Reset(&g_ctrl.pidAngle);
+                GM6020_SendStop(MOTOR_ID);
+                continue;
+            }
+            if (wasOnline == 0U)
+            {
+                printf("[MOTOR] feedback OK\r\n");
+            }
         }
 
         /* 3) 模式机 + 双环 */
