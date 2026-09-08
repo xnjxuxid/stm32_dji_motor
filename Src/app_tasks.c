@@ -385,7 +385,19 @@ static void HandleCommand(char *line)
     else if (strcmp(cmd, "ls")  == 0) { g_ctrl.speedLimit = ClampF(fabsf(v), 0.0f, 320.0f); }
     else if (strcmp(cmd, "lmin")== 0) { g_ctrl.angleMinSpeed = ClampF(fabsf(v), 0.0f, 100.0f); }
     else if (strcmp(cmd, "ad")  == 0) { g_ctrl.angleDeadband = ClampF(fabsf(v), 0.0f, 10.0f); }
-    else if (strcmp(cmd, "log") == 0) { g_ctrl.logCurve = (v > 0.0f) ? 1U : 0U; }
+    else if (strcmp(cmd, "log") == 0)
+    {
+        g_ctrl.logCurve = (v > 0.0f) ? 1U : 0U;
+        if (g_ctrl.logCurve)
+        {
+            printf("log: JustFloat ON (4ch: target/actual/output/error), "
+                   "text paused - set VOFA protocol to JustFloat to see curves\r\n");
+        }
+        else
+        {
+            printf("log: text mode ON (500ms per line)\r\n");
+        }
+    }
     else if (strcmp(cmd, "rc")  == 0)
     {
         g_ctrl.rcEnabled = (v > 0.0f) ? 1U : 0U;
