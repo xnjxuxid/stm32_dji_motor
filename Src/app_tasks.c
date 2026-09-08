@@ -46,6 +46,17 @@ static float ClampF(float v, float lo, float hi)
     return v;
 }
 
+/* 串口控制命令时自动接管：禁用遥控，否则 Task_Rc 每 10ms 会用摇杆值
+ * 覆盖串口刚设的目标（表现为电机抽动一下就停） */
+static void SerialTakeOver(void)
+{
+    if (g_ctrl.rcEnabled != 0U)
+    {
+        g_ctrl.rcEnabled = 0U;
+        printf("(remote control auto-disabled by serial command)\r\n");
+    }
+}
+
 /* ---------------- 创建 ---------------- */
 void App_Tasks_Create(void)
 {
@@ -357,17 +368,20 @@ static void HandleCommand(char *line)
     v   = (arg != NULL) ? (float)atof(arg) : 0.0f;
 
     if      (strcmp(cmd, "v")  == 0) {                      /* 直接给电压试转 */
+        SerialTakeOver();
         g_ctrl.mode = MODE_VOLT;
         g_ctrl.voltCmd = ClampF(v, -g_ctrl.voltLimit, g_ctrl.voltLimit);
         printf("volt mode: %.0f\r\n", g_ctrl.voltCmd);
     }
     else if (strcmp(cmd, "sp") == 0) {                      /* 速度环目标 */
+        SerialTakeOver();
         PID_Reset(&g_ctrl.pidSpeed);
         g_ctrl.mode = MODE_SPEED;
         g_ctrl.speedTarget = ClampF(v, -g_ctrl.speedLimit, g_ctrl.speedLimit);
         printf("speed target: %.1f rpm\r\n", g_ctrl.speedTarget);
     }
     else if (strcmp(cmd, "an") == 0) {                      /* 位置环：相对当前转 v 度 */
+        SerialTakeOver();
         PID_Reset(&g_ctrl.pidSpeed);
         PID_Reset(&g_ctrl.pidAngle);
         g_ctrl.mode = MODE_ANGLE;
