@@ -42,13 +42,24 @@ static void FeedByte(uint8_t b)
 {
     uint32_t now = HAL_GetTick();
 
-    if ((s_len > 0U) && ((now - s_lastByteMs) >= RC_FRAME_GAP_MS)) { s_len = 0; }
-    s_lastByteMs = now;
-
-    if (s_len == 0U) { if (b != 0x20u) { return; } }
-    else if (s_len == 1U) { if (b != 0x40u) { s_len = 0U; return; } }
+    /* iBus：帧头 0x20 0x40 逐字节同步（不依赖超时，帧间隔很短也能对齐） */
+    if (s_len == 0U)
+    {
+        if (b != 0x20u) { return; }
+    }
+    else if (s_len == 1U)
+    {
+        if (b != 0x40u)
+        {
+            /* 0x20 后面不是 0x40：这个 0x20 可能是数据，重新从当前字节判断 */
+            s_len = 0U;
+            FeedByte(b);
+            return;
+        }
+    }
 
     s_buf[s_len++] = b;
+    s_lastByteMs = now;
 
     if (s_len >= IBUS_FRAME_LEN)
     {
@@ -135,6 +146,35 @@ static void ParseSBUS(const uint8_t *b)
 
 static void FeedByte(uint8_t b)
 {
+    /* SBUS/DBUS：SBUS 有帧头 0x0F + 帧尾 0x00，直接按帧头同步
+     * （SBUS 帧率高、帧间隔可能小于超时阈值，靠超时对齐会错位）；
+     * DBUS（DR16）无帧头，仍靠帧间超时对齐。 */
+#if 1
+    if (s_len == 0U)
+    {
+        if (b != 0x0Fu) { return; }              /* 等帧头 */
+    }
+    s_buf[s_len++] = b;
+    s_lastByteMs = HAL_GetTick();
+
+    if (s_len >= 25U)
+    {
+        if ((s_buf[0] == 0x0Fu) && (s_buf[24] == 0x00U))
+        {
+            /* SBUS flags 在 byte[23]：bit2 = 丢帧，bit3 = 失控保护 */
+            uint8_t flags = s_buf[23];
+            g_rc.failsafe = (uint8_t)((flags & 0x08U) ? 1U : 0U);
+
+            if ((flags & 0x0CU) == 0U)          /* 正常帧才更新通道 */
+            {
+                ParseSBUS(s_buf);
+                g_rc.linked = 1U; g_rc.frameCount++; g_rc.lastFrameMs = s_lastByteMs;
+            }
+        }
+        s_len = 0;
+        (void)b;
+    }
+#else
     uint32_t now = HAL_GetTick();
 
     if ((s_len > 0U) && ((now - s_lastByteMs) >= RC_FRAME_GAP_MS)) { s_len = 0; }
@@ -165,6 +205,7 @@ static void FeedByte(uint8_t b)
         }
         s_len = 0;
     }
+#endif
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
@@ -180,7 +221,7 @@ float RC_Norm(uint8_t idx)
 {
     float v;
     if (idx >= 16U) { return 0.0f; }
-    v = ((float)g_rc.ch[idx] - 1024.0f) / 660.0f;    /* DBUS 中位 1024 */
+    v = ((float)g_rc.ch[idx] - 992.0f) / 820.0f;    /* SBUS：172~1811，中位 992 */
     if (v >  1.0f) { v =  1.0f; }
     if (v < -1.0f) { v = -1.0f; }
     return v;
@@ -192,6 +233,7 @@ void RC_Init(void)
 {
     memset(&g_rc, 0, sizeof(g_rc));
     s_len = 0;
+    (void)ParseDBUS;    /* DR16(DBUS) 模式使用；SBUS 模式下保留备用 */
 }
 
 uint8_t RC_IsLinked(void)

@@ -320,6 +320,14 @@ static void Task_Log(void *arg)
                        g_motor.currentA, (unsigned)g_motor.tempC, g_ctrl.out,
                        (unsigned)lec, (unsigned)tec, (unsigned)rec, (unsigned)boff);
 
+                /* 遥控状态行：一眼看出 SBUS/DBUS 有没有数据进来 */
+                printf("rc: link=%u fs=%u fc=%lu ch=[%u %u %u %u] sw=%u\r\n",
+                       (unsigned)g_rc.linked, (unsigned)g_rc.failsafe,
+                       (unsigned long)g_rc.frameCount,
+                       (unsigned)g_rc.ch[0], (unsigned)g_rc.ch[1],
+                       (unsigned)g_rc.ch[2], (unsigned)g_rc.ch[3],
+                       (unsigned)g_ctrl.rcSwCh);
+
                 if (s_rxOtherId != 0U)
                 {
                     printf("note: got feedback from ID 0x%03lX -> set MOTOR_ID=%lu "
