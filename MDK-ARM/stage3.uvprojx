@@ -474,9 +474,9 @@
               <FilePath>../Src/bmi088.c</FilePath>
             </File>
             <File>
-              <FileName>rc_dr16.c</FileName>
+              <FileName>rc_ibus.c</FileName>
               <FileType>1</FileType>
-              <FilePath>../Src/rc_dr16.c</FilePath>
+              <FilePath>../Src/rc_ibus.c</FilePath>
             </File>
             </Files>
         </Group>

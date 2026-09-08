@@ -17,7 +17,7 @@
 #include "stm32f4xx_hal.h"
 #include "uart_vofa.h"
 #include "vofa_send.h"
-#include "rc_dr16.h"
+#include "rc_ibus.h"
 #include "bmi088.h"
 #include "spi.h"
 #include <stdio.h>
@@ -70,6 +70,7 @@ void App_Tasks_Create(void)
     g_ctrl.out        = 0.0f;
     g_ctrl.logCurve   = 0U;
     g_ctrl.rcEnabled  = 0U;        /* 默认不允许遥控控制，命令 rc 1 开启 */
+    g_ctrl.rcSwCh     = 0U;        /* 0 = 不启用安全开关；命令 rsw 5 可指定通道 */
 
     /* ---- 阶段三：BMI088 上电自检（SPI） ---- */
     BMI088_Init(&g_imu);
@@ -116,18 +117,23 @@ static void Task_Rc(void *arg)
             continue;
         }
 
-        /* 安全开关：S1 拨杆在上位(1) 才允许输出；否则停机 */
-        if (g_rc.s1 != 1U)
+        /* 可选安全开关：rsw 指定通道号（1~14），0 = 不用开关。
+         * 开关通道 > 1500us（拨杆上位）才允许输出，否则停机。 */
+        if (g_ctrl.rcSwCh != 0U)
         {
-            g_ctrl.mode = MODE_IDLE;
-            g_ctrl.out  = 0.0f;
-            PID_Reset(&g_ctrl.pidSpeed);
-            PID_Reset(&g_ctrl.pidAngle);
-            GM6020_SendStop(MOTOR_ID);
-            continue;
+            uint16_t sw = g_rc.ch[g_ctrl.rcSwCh - 1U];
+            if (sw < 1500U)
+            {
+                g_ctrl.mode = MODE_IDLE;
+                g_ctrl.out  = 0.0f;
+                PID_Reset(&g_ctrl.pidSpeed);
+                PID_Reset(&g_ctrl.pidAngle);
+                GM6020_SendStop(MOTOR_ID);
+                continue;
+            }
         }
 
-        /* 右摇杆上下（ch1）→ 速度目标（±speedLimit），带 5% 死区 */
+        /* 右摇杆上下（CH2 = 索引 1）→ 速度目标（±speedLimit），带 5% 死区 */
         float cmd = RC_Norm(1) * g_ctrl.speedLimit;
         if (fabsf(cmd) < (0.05f * g_ctrl.speedLimit)) { cmd = 0.0f; }
 
@@ -375,6 +381,12 @@ static void HandleCommand(char *line)
                g_ctrl.rcEnabled ? "ENABLED" : "disabled");
     }
     else if (strcmp(cmd, "imust")== 0) { (void)BMI088_SelfTest(&g_imu); }
+    else if (strcmp(cmd, "rsw")  == 0)
+    {
+        g_ctrl.rcSwCh = (uint8_t)ClampF(v, 0.0f, 14.0f);
+        printf("rc safety switch channel = %u (0 = disabled)\r\n",
+               (unsigned)g_ctrl.rcSwCh);
+    }
     else if (strcmp(cmd, "zero")== 0) { GM6020_ZeroAngle(&g_motor); printf("angle zeroed\r\n"); }
     else if (strcmp(cmd, "stop")== 0) { g_ctrl.mode = MODE_IDLE; PID_Reset(&g_ctrl.pidSpeed); PID_Reset(&g_ctrl.pidAngle); }
     else if (strcmp(cmd, "help")== 0 || strcmp(cmd, "?") == 0)

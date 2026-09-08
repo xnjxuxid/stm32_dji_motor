@@ -24,7 +24,7 @@
 #include "uart_vofa.h"
 #include "app_tasks.h"
 #include "spi.h"
-#include "rc_dr16.h"
+#include "rc_ibus.h"
 #include "bmi088.h"
 
 void SystemClock_Config(void);
@@ -44,7 +44,7 @@ int main(void)
     MX_SPI1_Init();         /* SPI1 PA5/6/7（BMI088）                 */
     MX_CAN1_Init();         /* CAN1 PA11/PA12，1 Mbps（分频自动计算） */
     MX_UART5_Init();        /* UART5 PC12/PD2，115200（VOFA/命令）    */
-    MX_USART1_UART_Init();  /* USART1 PA10，100000 8E2 反相（遥控器） */
+    MX_USART6_UART_Init();  /* USART6 PC7，115200 8N1 正逻辑（iBus 遥控） */
 
     printf("\r\n==== GM6020 CAN demo (F405 + FreeRTOS) ====\r\n");
 #if CLOCK_USE_HSE

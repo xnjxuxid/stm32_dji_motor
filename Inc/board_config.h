@@ -19,20 +19,23 @@
 
 /* =========================== 阶段三新增 =========================== */
 
-/* ---------- 遥控器（DR16/DBUS 或 SBUS，自动识别） ----------
- * 原理图确认：板上 DBUS 座经 SS8050 三极管反相后接到 USART2_RX(PA3)，
- * 硬件反相已就位，无需软件/电平处理。
- * 波特率 100000，8 数据位 + 偶校验 + 2 停止位。
- * DBUS 帧 18 字节（DJI DR16），SBUS 帧 25 字节（头 0x0F 尾 0x00）。 */
-#define RC_UART_HANDLE      huart2
+/* ---------- 遥控器：FlySky iBus（iA10B 的 i-BUS 口） ----------
+ * 为什么用 iBus：115200 / 8N1 / **正逻辑**（不用反相器、不用奇偶校验），
+ *   是所有遥控协议里最简单的一根线方案。
+ * 为什么用 USART6(PC7)：
+ *   原理图确认 P1 座（RC+Servo）的 DBUS 经 Q1 SS8050 **反相**后接 PA3，
+ *   反相后的信号不能收 iBus；板上的 **J8 座（GHS1.25 4P）** 直接是
+ *   USART6_RX(PC7) + USART6_TX(PC6) + 5V + GND，无反相且带 3.6V 保护二极管。
+ * 帧格式：0x20 0x40 头 + 14 通道×2 字节(小端, 1000~2000us) + 2 字节校验和 = 32 字节 */
+#define RC_UART_HANDLE      huart6
 #define RC_UART             (&RC_UART_HANDLE)
-#define RC_UART_INSTANCE    USART2
-#define RC_BAUDRATE         (100000u)
+#define RC_UART_INSTANCE    USART6
+#define RC_BAUDRATE         (115200u)
 
 /* 遥控保护：超过该时间没收到新帧 → 立即停输出、清 PID 积分（电机"没力"） */
 #define RC_LINK_TIMEOUT_MS  (100u)
 
-extern UART_HandleTypeDef huart2;
+extern UART_HandleTypeDef huart6;
 
 /* ---------- BMI088（SPI1，原理图确认是 SPI 不是 I2C） ----------
  * SPI1 : PA5 = SCK, PA6 = MISO, PA7 = MOSI

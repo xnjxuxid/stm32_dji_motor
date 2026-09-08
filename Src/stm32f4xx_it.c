@@ -14,7 +14,7 @@
 #include "usart.h"
 #include "dma.h"
 #include "uart_vofa.h"
-#include "rc_dr16.h"
+#include "rc_ibus.h"
 #include "cmsis_os2.h"
 
 void NMI_Handler(void)          { for (;;) { } }
@@ -55,7 +55,7 @@ void DMA1_Stream7_IRQHandler(void)
     HAL_DMA_IRQHandler(&hdma_uart5_tx);
 }
 
-void USART2_IRQHandler(void)
+void USART6_IRQHandler(void)
 {
-    HAL_UART_IRQHandler(&huart2);   /* 遥控器逐字节接收（RxCplt 回调在 rc_dr16.c） */
+    HAL_UART_IRQHandler(&huart6);   /* 遥控器 iBus 逐字节接收（回调在 rc_ibus.c） */
 }
