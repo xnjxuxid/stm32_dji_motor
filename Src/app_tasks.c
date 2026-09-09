@@ -449,6 +449,19 @@ static void HandleCommand(char *line)
     }
     else if (strcmp(cmd, "zero")== 0) { GM6020_ZeroAngle(&g_motor); printf("angle zeroed\r\n"); }
     else if (strcmp(cmd, "stop")== 0) { g_ctrl.mode = MODE_IDLE; PID_Reset(&g_ctrl.pidSpeed); PID_Reset(&g_ctrl.pidAngle); }
+    else if (strcmp(cmd, "pr") == 0)      /* 打印当前全部参数（排查"参数没设上"） */
+    {
+        printf("-- speed loop -- kp=%.1f ki=%.1f kd=%.1f | out=%.0f err=%.1f sum=%.1f\r\n",
+               g_ctrl.pidSpeed.Kp, g_ctrl.pidSpeed.Ki, g_ctrl.pidSpeed.Kd,
+               g_ctrl.pidSpeed.out, g_ctrl.pidSpeed.err, g_ctrl.pidSpeed.errSum);
+        printf("-- angle loop -- kp=%.2f ki=%.3f kd=%.3f | err=%.1f\r\n",
+               g_ctrl.pidAngle.Kp, g_ctrl.pidAngle.Ki, g_ctrl.pidAngle.Kd,
+               g_ctrl.pidAngle.err);
+        printf("-- limits -- lv=%.0f ls=%.0f lmin=%.0f ad=%.2f | dz=%.2f rcEn=%u rcSw=%u\r\n",
+               g_ctrl.voltLimit, g_ctrl.speedLimit, g_ctrl.angleMinSpeed,
+               g_ctrl.angleDeadband, g_ctrl.rcDeadzone,
+               (unsigned)g_ctrl.rcEnabled, (unsigned)g_ctrl.rcSwCh);
+    }
     else if (strcmp(cmd, "help")== 0 || strcmp(cmd, "?") == 0)
     {
         printf("== commands ==\r\n"
