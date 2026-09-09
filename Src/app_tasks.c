@@ -98,6 +98,11 @@ void App_Tasks_Create(void)
     xTaskCreate(Task_Imu,       "imu",   LOG_TASK_STACK,  NULL, LOG_TASK_PRIO,  NULL);
 }
 
+/* 诊断计数：定位"积分被谁清了"（速度环上不到目标的排查用） */
+static uint32_t s_protectCnt = 0;    /* 反馈超时保护触发次数 */
+static uint32_t s_rcStopCnt  = 0;    /* 遥控任务停机次数 */
+static uint32_t s_calcCnt    = 0;    /* PID 实际计算次数 */
+
 /* ---------------- 遥控任务（10ms）：解析结果 → 控制电机 + 失联保护 ---------------- */
 static void Task_Rc(void *arg)
 {
@@ -126,6 +131,7 @@ static void Task_Rc(void *arg)
                 PID_Reset(&g_ctrl.pidSpeed);
                 PID_Reset(&g_ctrl.pidAngle);
                 GM6020_SendStop(MOTOR_ID);
+                s_rcStopCnt++;
             }
             continue;
         }
@@ -247,6 +253,7 @@ static void Task_MotorCtrl(void *arg)
                 PID_Reset(&g_ctrl.pidSpeed);
                 PID_Reset(&g_ctrl.pidAngle);
                 GM6020_SendStop(MOTOR_ID);
+                s_protectCnt++;                 /* ← 每清一次积分就 +1 */
                 continue;
             }
             if (wasOnline == 0U)
@@ -265,6 +272,7 @@ static void Task_MotorCtrl(void *arg)
         case MODE_SPEED:
             out = PID_Calc(&g_ctrl.pidSpeed,
                            g_ctrl.speedTarget, g_motor.speed);
+            s_calcCnt++;
             break;
 
         case MODE_ANGLE:
@@ -467,6 +475,12 @@ static void HandleCommand(char *line)
                g_ctrl.voltLimit, g_ctrl.speedLimit, g_ctrl.angleMinSpeed,
                g_ctrl.angleDeadband, g_ctrl.rcDeadzone,
                (unsigned)g_ctrl.rcEnabled, (unsigned)g_ctrl.rcSwCh);
+        /* 关键诊断：protect>0 说明反馈超时保护在反复清积分（速度环上不去的真凶）；
+         * rcStop>0 说明遥控任务在清；calc 应约等于运行毫秒数（1ms 一次） */
+        printf("-- diag -- mode=%d iOut=%.0f pOut=%.0f | protect=%lu rcStop=%lu calc=%lu\r\n",
+               (int)g_ctrl.mode, g_ctrl.pidSpeed.iOut, g_ctrl.pidSpeed.pOut,
+               (unsigned long)s_protectCnt, (unsigned long)s_rcStopCnt,
+               (unsigned long)s_calcCnt);
     }
     else if (strcmp(cmd, "help")== 0 || strcmp(cmd, "?") == 0)
     {
