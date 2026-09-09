@@ -126,8 +126,12 @@ extern DMA_HandleTypeDef  hdma_uart5_tx;
 #define GM6020_CUR_MAX_RAW      (16384.0f)              /* 电流满量程 */
 #define GM6020_CUR_MAX_A        (3.0f)                  /* 对应 ±3 A */
 
-/* 安全限幅（上电默认很小，命令 lv 可改；不要一上来就满电压） */
-#define MOTOR_VOLT_LIMIT_DEFAULT (6000.0f)
+/* 安全限幅（命令 lv 可改）
+ * 说明：这是"输出电压上限"，不是"当前输出"。上电默认 MODE_IDLE 不输出、
+ * 反馈超时 200ms 自动停机，安全由这两条保证，所以上限不必设得过小。
+ * 6000 太小：GM6020 空载约 13.3 rpm/V，6000 只能到 ~80rpm，
+ * 会让速度环"积分攒满也到不了目标"，是一个非常隐蔽的坑。 */
+#define MOTOR_VOLT_LIMIT_DEFAULT (20000.0f)
 
 /* 反馈超时保护：超过该时间没收到新反馈 → 输出 0 并清积分 */
 #define MOTOR_RX_TIMEOUT_MS      (200u)

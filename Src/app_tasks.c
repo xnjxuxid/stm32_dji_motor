@@ -76,6 +76,8 @@ void App_Tasks_Create(void)
     g_ctrl.speedCmd   = 0.0f;
     g_ctrl.voltLimit  = MOTOR_VOLT_LIMIT_DEFAULT;
     g_ctrl.speedLimit = MOTOR_SPEED_LIMIT_RPM;
+    /* 积分限幅跟随输出限幅（80%），避免积分单独占满输出 */
+    PID_SetLimit(&g_ctrl.pidSpeed, g_ctrl.voltLimit, g_ctrl.voltLimit * 0.8f);
     g_ctrl.angleMinSpeed = 15.0f;   /* 最小 15rpm：低于这个值电机推不动（静摩擦） */
     g_ctrl.angleDeadband = 0.5f;    /* 0.5° 以内算到位 */
     g_ctrl.out        = 0.0f;
@@ -102,6 +104,7 @@ void App_Tasks_Create(void)
 static uint32_t s_protectCnt = 0;    /* 反馈超时保护触发次数 */
 static uint32_t s_rcStopCnt  = 0;    /* 遥控任务停机次数 */
 static uint32_t s_calcCnt    = 0;    /* PID 实际计算次数 */
+static uint8_t  s_limited    = 0;    /* 输出被 voltLimit 钳住的瞬时标志 */
 
 /* ---------------- 遥控任务（10ms）：解析结果 → 控制电机 + 失联保护 ---------------- */
 static void Task_Rc(void *arg)
@@ -306,8 +309,13 @@ static void Task_MotorCtrl(void *arg)
             break;
         }
 
-        /* 4) 输出限幅 + 下发 */
-        out = ClampF(out, -g_ctrl.voltLimit, g_ctrl.voltLimit);
+        /* 4) 输出限幅 + 下发
+         *    ⚠️ 这里记录"PID 想要的值(raw)"和"实际下发的值"。
+         *    voltLimit(lv) 太小会让速度环永远到不了目标——
+         *    表现为"积分已经攒满但速度上不去"，pr 里 raw >> applied 一眼可辨。 */
+        g_ctrl.outRaw = out;
+        if (out >  g_ctrl.voltLimit) { out =  g_ctrl.voltLimit; s_limited = 1; }
+        if (out < -g_ctrl.voltLimit) { out = -g_ctrl.voltLimit; s_limited = 1; }
         g_ctrl.out = out;
         GM6020_SendVoltage(MOTOR_ID, out);
     }
@@ -420,7 +428,16 @@ static void HandleCommand(char *line)
     else if (strcmp(cmd, "kp2") == 0) { g_ctrl.pidAngle.Kp = v; }
     else if (strcmp(cmd, "ki2") == 0) { g_ctrl.pidAngle.Ki = v; }
     else if (strcmp(cmd, "kd2") == 0) { g_ctrl.pidAngle.Kd = v; }
-    else if (strcmp(cmd, "lv")  == 0) { g_ctrl.voltLimit = ClampF(fabsf(v), 0.0f, GM6020_VOLT_MAX); }
+    else if (strcmp(cmd, "lv")  == 0)
+    {
+        /* 改输出限幅时同步积分限幅：iMax 取 lv 的 80%，
+         * 剩下 20% 留给 P/D，避免积分单独就把输出占满导致松开限幅后猛冲 */
+        g_ctrl.voltLimit = ClampF(fabsf(v), 0.0f, GM6020_VOLT_MAX);
+        PID_SetLimit(&g_ctrl.pidSpeed, g_ctrl.voltLimit,
+                     g_ctrl.voltLimit * 0.8f);
+        printf("lv=%.0f (iMax=%.0f)\r\n", g_ctrl.voltLimit,
+               g_ctrl.voltLimit * 0.8f);
+    }
     else if (strcmp(cmd, "ls")  == 0) { g_ctrl.speedLimit = ClampF(fabsf(v), 0.0f, 320.0f); }
     else if (strcmp(cmd, "lmin")== 0) { g_ctrl.angleMinSpeed = ClampF(fabsf(v), 0.0f, 100.0f); }
     else if (strcmp(cmd, "ad")  == 0) { g_ctrl.angleDeadband = ClampF(fabsf(v), 0.0f, 10.0f); }
@@ -475,12 +492,18 @@ static void HandleCommand(char *line)
                g_ctrl.voltLimit, g_ctrl.speedLimit, g_ctrl.angleMinSpeed,
                g_ctrl.angleDeadband, g_ctrl.rcDeadzone,
                (unsigned)g_ctrl.rcEnabled, (unsigned)g_ctrl.rcSwCh);
-        /* 关键诊断：protect>0 说明反馈超时保护在反复清积分（速度环上不去的真凶）；
-         * rcStop>0 说明遥控任务在清；calc 应约等于运行毫秒数（1ms 一次） */
+        /* 关键诊断：
+         * protect>0 → 反馈超时保护在反复清积分（速度环上不去的原因之一）
+         * raw >> applied（LIMIT!）→ 输出被 voltLimit(lv) 钳住，放宽 lv 即可
+         * calc 应约等于运行毫秒数（1ms 一次） */
         printf("-- diag -- mode=%d iOut=%.0f pOut=%.0f | protect=%lu rcStop=%lu calc=%lu\r\n",
                (int)g_ctrl.mode, g_ctrl.pidSpeed.iOut, g_ctrl.pidSpeed.pOut,
                (unsigned long)s_protectCnt, (unsigned long)s_rcStopCnt,
                (unsigned long)s_calcCnt);
+        printf("-- output -- raw=%.0f applied=%.0f limit=%.0f %s\r\n",
+               g_ctrl.outRaw, g_ctrl.out, g_ctrl.voltLimit,
+               (s_limited != 0U) ? "<<< LIMIT! raise 'lv'" : "ok");
+        s_limited = 0U;      /* 清标志，下次 pr 反映新的即时状态 */
     }
     else if (strcmp(cmd, "help")== 0 || strcmp(cmd, "?") == 0)
     {
