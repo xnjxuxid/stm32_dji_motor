@@ -26,7 +26,9 @@ typedef struct
 
     float    angleDeg;      /* 单圈角度 0~360°      */
     float    angleCont;     /* 连续角度（度，可多圈）*/
-    float    speed;         /* rpm                  */
+    float    speedRaw;      /* rpm（未滤波，调试看）*/
+    float    speed;         /* rpm（滤波后，闭环用）*/
+    float    speedFilt;     /* 一阶低通系数 0.05~1.0，越小越平滑 */
     float    currentA;      /* A                    */
 
     uint16_t lastRaw;       /* 上一次角度原始值（跨圈检测） */

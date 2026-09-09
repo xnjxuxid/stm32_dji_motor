@@ -21,7 +21,9 @@ void GM6020_Init(GM6020_t *m, uint8_t id)
     m->tempC     = 0;
     m->angleDeg  = 0.0f;
     m->angleCont = 0.0f;
+    m->speedRaw  = 0.0f;
     m->speed     = 0.0f;
+    m->speedFilt = 0.30f;    /* 1ms 周期下截止约 57Hz；想更平滑改小，想更快改大 */
     m->currentA  = 0.0f;
     m->lastRaw   = 0;
     m->rawValid  = 0;
@@ -46,7 +48,9 @@ void GM6020_Update(GM6020_t *m, const uint8_t *d)
     m->tempC      = d[6];
 
     m->angleDeg  = (float)m->angleRaw * 360.0f / GM6020_ANGLE_MAX_RAW;
-    m->speed     = (float)m->speedRpm;
+    m->speedRaw  = (float)m->speedRpm;
+    /* 一阶低通：滤掉转速反馈的量化噪声/高频抖动，能明显抬高可用的 kp 上限 */
+    m->speed    += (m->speedRaw - m->speed) * m->speedFilt;
     m->currentA  = (float)m->currentRaw * GM6020_CUR_MAX_A / GM6020_CUR_MAX_RAW;
 
     if (m->rawValid)

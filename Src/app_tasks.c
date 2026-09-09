@@ -436,6 +436,12 @@ static void HandleCommand(char *line)
                g_ctrl.rcEnabled ? "ENABLED" : "disabled");
     }
     else if (strcmp(cmd, "imust")== 0) { (void)BMI088_SelfTest(&g_imu); }
+    else if (strcmp(cmd, "sf")   == 0)
+    {
+        /* 转速反馈一阶低通系数：越小越平滑（kp 可开更大），越大响应越快 */
+        g_motor.speedFilt = ClampF(fabsf(v), 0.02f, 1.0f);
+        printf("speed filter = %.2f\r\n", g_motor.speedFilt);
+    }
     else if (strcmp(cmd, "dz")   == 0)
     {
         g_ctrl.rcDeadzone = ClampF(fabsf(v), 0.0f, 0.5f);
