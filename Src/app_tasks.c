@@ -74,6 +74,7 @@ void App_Tasks_Create(void)
     g_ctrl.speedTarget= 0.0f;
     g_ctrl.angleTarget= 0.0f;
     g_ctrl.speedCmd   = 0.0f;
+    g_ctrl.speedFF    = MOTOR_SPEED_FF_DEFAULT;
     g_ctrl.voltLimit  = MOTOR_VOLT_LIMIT_DEFAULT;
     g_ctrl.speedLimit = MOTOR_SPEED_LIMIT_RPM;
     /* 积分限幅跟随输出限幅（80%），避免积分单独占满输出 */
@@ -273,7 +274,11 @@ static void Task_MotorCtrl(void *arg)
             break;
 
         case MODE_SPEED:
-            out = PID_Calc(&g_ctrl.pidSpeed,
+            /* 前馈 + 反馈：
+             * 前馈立即给出"维持目标转速所需的稳态电压"（target × 78），
+             * PID 只补剩余的误差 → 阶跃响应不再依赖积分慢慢爬。 */
+            out = g_ctrl.speedFF * g_ctrl.speedTarget
+                + PID_Calc(&g_ctrl.pidSpeed,
                            g_ctrl.speedTarget, g_motor.speed);
             s_calcCnt++;
             break;
@@ -300,8 +305,9 @@ static void Task_MotorCtrl(void *arg)
                 speedCmd = 0.0f;      /* 已到死区内：停住，避免来回抖 */
             }
             g_ctrl.speedCmd = speedCmd;
-            /* 内环：速度误差 → 电压 */
-            out = PID_Calc(&g_ctrl.pidSpeed, speedCmd, g_motor.speed);
+            /* 内环：速度误差 → 电压（同样加前馈，位置环也会更快） */
+            out = g_ctrl.speedFF * speedCmd
+                + PID_Calc(&g_ctrl.pidSpeed, speedCmd, g_motor.speed);
             break;
 
         default:
@@ -439,6 +445,11 @@ static void HandleCommand(char *line)
                g_ctrl.voltLimit * 0.8f);
     }
     else if (strcmp(cmd, "ls")  == 0) { g_ctrl.speedLimit = ClampF(fabsf(v), 0.0f, 320.0f); }
+    else if (strcmp(cmd, "ff") == 0)   /* 速度前馈：78 = 理论值，带载可调大到 90~110 */
+    {
+        g_ctrl.speedFF = ClampF(v, 0.0f, 300.0f);
+        printf("speedFF=%.1f (0=off, 78=theory)\r\n", g_ctrl.speedFF);
+    }
     else if (strcmp(cmd, "lmin")== 0) { g_ctrl.angleMinSpeed = ClampF(fabsf(v), 0.0f, 100.0f); }
     else if (strcmp(cmd, "ad")  == 0) { g_ctrl.angleDeadband = ClampF(fabsf(v), 0.0f, 10.0f); }
     else if (strcmp(cmd, "log") == 0)
@@ -500,6 +511,7 @@ static void HandleCommand(char *line)
                (int)g_ctrl.mode, g_ctrl.pidSpeed.iOut, g_ctrl.pidSpeed.pOut,
                (unsigned long)s_protectCnt, (unsigned long)s_rcStopCnt,
                (unsigned long)s_calcCnt);
+        printf("-- ff=%.1f (0=off,78=theory) --\r\n", g_ctrl.speedFF);
         printf("-- output -- raw=%.0f applied=%.0f limit=%.0f %s\r\n",
                g_ctrl.outRaw, g_ctrl.out, g_ctrl.voltLimit,
                (s_limited != 0U) ? "<<< LIMIT! raise 'lv'" : "ok");

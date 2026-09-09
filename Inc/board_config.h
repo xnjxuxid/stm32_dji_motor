@@ -133,6 +133,13 @@ extern DMA_HandleTypeDef  hdma_uart5_tx;
  * 会让速度环"积分攒满也到不了目标"，是一个非常隐蔽的坑。 */
 #define MOTOR_VOLT_LIMIT_DEFAULT (20000.0f)
 
+/* 速度环前馈系数（电压给定 / rpm）
+ * GM6020：25000 电压 ↔ 320rpm（空载）→ 1rpm 需要 25000/320 = 78.1 个电压单位。
+ * 有前馈后，阶跃瞬间就把"维持目标转速所需的稳态电压"给出去，
+ * PID 只需补偿剩下的小误差 → 响应时间由"积分慢慢爬"变成"电机自然加速"。
+ * 带载时可略微调大（克服摩擦/负载需要额外电压）。 */
+#define MOTOR_SPEED_FF_DEFAULT  (78.0f)
+
 /* 反馈超时保护：超过该时间没收到新反馈 → 输出 0 并清积分 */
 #define MOTOR_RX_TIMEOUT_MS      (200u)
 
