@@ -16,6 +16,7 @@ RC_t g_rc;
 static uint8_t  s_byte;
 static uint8_t  s_len = 0;
 static uint32_t s_lastByteMs = 0;
+static uint8_t  s_fsCnt = 0;      /* 连续失控帧计数（防单帧误判） */
 
 #if (RC_PROTOCOL == 0)
 /* ============================ iBus（USART6 / PC7） ============================ */
@@ -161,14 +162,25 @@ static void FeedByte(uint8_t b)
     {
         if ((s_buf[0] == 0x0Fu) && (s_buf[24] == 0x00U))
         {
-            /* SBUS flags 在 byte[23]：bit2 = 丢帧，bit3 = 失控保护 */
+            /* SBUS flags 在 byte[23]：bit2 = 丢帧，bit3 = 失控保护。
+             * 防误判：失控标志需**连续 3 帧**置位才认定（单帧噪声/错位帧忽略）；
+             * 收到正常帧立即清零。 */
             uint8_t flags = s_buf[23];
-            g_rc.failsafe = (uint8_t)((flags & 0x08U) ? 1U : 0U);
 
-            if ((flags & 0x0CU) == 0U)          /* 正常帧才更新通道 */
+            if ((flags & 0x0CU) == 0U)
             {
+                s_fsCnt = 0U;
+                g_rc.failsafe = 0U;
                 ParseSBUS(s_buf);
                 g_rc.linked = 1U; g_rc.frameCount++; g_rc.lastFrameMs = s_lastByteMs;
+            }
+            else if ((flags & 0x08U) != 0U)
+            {
+                if (++s_fsCnt >= 3U) { g_rc.failsafe = 1U; }
+            }
+            else
+            {
+                s_fsCnt = 0U;                    /* 仅丢帧（bit2），暂不判失控 */
             }
         }
         s_len = 0;
@@ -234,6 +246,7 @@ void RC_Init(void)
 {
     memset(&g_rc, 0, sizeof(g_rc));
     s_len = 0;
+    s_fsCnt = 0;
     (void)ParseDBUS;    /* DR16(DBUS) 模式使用；SBUS 模式下保留备用 */
 }
 

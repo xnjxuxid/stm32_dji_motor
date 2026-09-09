@@ -108,19 +108,25 @@ static void Task_Rc(void *arg)
     {
         vTaskDelayUntil(&lastWake, pdMS_TO_TICKS(10U));
 
-        /* ★ 遥控保护（任务书硬要求）：失联 → 立即停止输出 + 清积分，
-         *   电机进入"没力"状态（不发电压指令 / 发 0 电压） */
+        /* ★ 遥控保护（任务书硬要求）：**遥控被授权控制期间**失联 →
+         *   立即停止输出 + 清积分，电机进入"没力"状态。
+         *   仅当 rcEnabled=1 才触发：串口接管后（rc 0 或串口命令自动接管），
+         *   遥控开不开机都不影响串口控制。 */
         if (!RC_IsLinked())
         {
-            if (g_ctrl.mode != MODE_IDLE)
+            if (g_ctrl.rcEnabled != 0U)
             {
-                printf("[RC] link lost -> motor disabled\r\n");
+                if (g_ctrl.mode != MODE_IDLE)
+                {
+                    printf("[RC] link lost (fs=%u fc=%lu) -> motor disabled\r\n",
+                           (unsigned)g_rc.failsafe, (unsigned long)g_rc.frameCount);
+                }
+                g_ctrl.mode = MODE_IDLE;
+                g_ctrl.out  = 0.0f;
+                PID_Reset(&g_ctrl.pidSpeed);
+                PID_Reset(&g_ctrl.pidAngle);
+                GM6020_SendStop(MOTOR_ID);
             }
-            g_ctrl.mode = MODE_IDLE;
-            g_ctrl.out  = 0.0f;
-            PID_Reset(&g_ctrl.pidSpeed);
-            PID_Reset(&g_ctrl.pidAngle);
-            GM6020_SendStop(MOTOR_ID);
             continue;
         }
 
